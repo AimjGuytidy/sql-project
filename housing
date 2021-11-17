@@ -152,3 +152,31 @@ group by soldasvacant
 order by 2;
 
 --remove duplicatesm not good practice!!!!
+select *
+from housedata;
+--let's work with views so that we don't alter original data
+create  view housedata_upd as 
+select *
+from housedata;
+
+delete from housedata_upd
+where uniqueid in (select uniqueid
+from (select uniqueid,
+	row_number() over(
+						partition by parcelid,propertyaddress,
+									saledate,saleprice,legalreference
+									order by uniqueid
+					) as row_num
+from housedata_upd) as h
+where row_num > 1);
+
+--delete unused columns
+select *
+from housedata_upd;
+
+-- create or replace view housedata_upd as
+-- alter table housedata
+-- drop column propertyaddress, drop column owneraddress, drop column taxdistrict;
+
+
+						

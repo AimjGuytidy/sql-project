@@ -1,0 +1,9 @@
+-- COPY covideath
+-- FROM 'C:\Users\user\Desktop\covideath.csv'
+-- WITH (format csv, header);
+SELECT * 
+FROM covideath
+WHERE "location" LIKE '%United%';
+SELECT * 
+FROM covideath
+WHERE "location" LIKE 'Rwanda';

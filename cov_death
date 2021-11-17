@@ -1,0 +1,208 @@
+-- DROP TABLE covid_vac; 
+-- CREATE TABLE covid_vac(
+-- 	iso_code varchar(255) not null,
+-- 	continent varchar(255),
+-- 	"location" varchar(255) not null,	
+-- 	"date" timestamp not null,	
+-- 	new_tests  numeric,	
+-- 	total_tests  numeric,	
+-- 	total_tests_per_thousand  numeric,	
+-- 	new_tests_per_thousand  numeric,	
+-- 	new_tests_smoothed  numeric,	
+-- 	new_tests_smoothed_per_thousand  numeric,	
+-- 	positive_rate  numeric,	
+-- 	tests_per_case  numeric,	
+-- 	tests_units  text,	
+-- 	total_vaccinations  numeric,	
+-- 	people_vaccinated  numeric,	
+-- 	people_fully_vaccinated  numeric,	
+-- 	total_boosters  numeric,	
+-- 	new_vaccinations  numeric,	
+-- 	new_vaccinations_smoothed  numeric,	
+-- 	total_vaccinations_per_hundred  numeric,	
+-- 	people_vaccinated_per_hundred  numeric,	
+-- 	people_fully_vaccinated_per_hundred	  numeric,
+-- 	total_boosters_per_hundred  numeric,	
+-- 	new_vaccinations_smoothed_per_million  numeric,	
+-- 	stringency_index  numeric,	
+-- 	population_density  numeric,	
+-- 	median_age  numeric,	
+-- 	aged_65_older  numeric,	
+-- 	aged_70_older  numeric,	
+-- 	gdp_per_capita  numeric,	
+-- 	extreme_poverty  numeric,	
+-- 	cardiovasc_death_rate  numeric,	
+-- 	diabetes_prevalence  numeric,	
+-- 	female_smokers  numeric,	
+-- 	male_smokers  numeric,	
+-- 	handwashing_facilities  numeric,	
+-- 	hospital_beds_per_thousand  numeric,	
+-- 	life_expectancy	  numeric,
+-- 	human_development_index  numeric,	
+-- 	excess_mortality  numeric
+
+-- ); 
+--importing data from excel to add to our table covid_vac
+-- COPY covid_vac
+-- FROM 'C:\Users\user\Desktop\data analytic\data\covidy.csv'
+-- WITH (format csv,header);
+
+
+--let's view our table data
+-- select * 
+-- from covid_vac
+-- where tests_units is not null
+-- limit 178;
+
+-- select * 
+-- from covideath
+-- where continent is null;
+
+--view of different continents available 
+select DISTINCT("location") 
+from covideath
+where continent is null;
+
+--overview of our data
+SELECT "location","date",total_cases,new_cases,total_deaths,population
+FROM covideath;
+
+--overview of our data for the whole world
+SELECT DISTINCT("location"),"date",total_cases,new_cases,total_deaths,population
+FROM covideath
+WHERE "date" = (SELECT MAX("date")
+			   FROM covideath
+			   WHERE "location" = 'World'
+			   GROUP BY "location")
+AND "location" = 'World'
+;
+
+
+--summation of deaths and cases globally
+SELECT DISTINCT("location"),total_cases AS "Total Cases",total_deaths AS "Total Death",
+	   CONCAT(round((total_deaths/total_cases)*100,2)::text,'%') AS "Death Percentage"		
+FROM covideath
+WHERE "date" = (SELECT MAX("date")
+			   FROM covideath
+			   WHERE "location" = 'World'
+			   GROUP BY "location")
+AND "location" = 'World';
+--create a view to use later in tableau
+CREATE VIEW global_death_view AS
+SELECT DISTINCT("location"),total_cases AS "Total Cases",total_deaths AS "Total Death",
+	   round((total_deaths/total_cases)*100,2) AS "Death Percentage"		
+FROM covideath
+WHERE "date" = (SELECT MAX("date")
+			   FROM covideath
+			   WHERE "location" = 'World'
+			   GROUP BY "location")
+AND "location" = 'World';
+
+--total deaths by continents(6 continents)
+SELECT DISTINCT("location"),total_deaths AS "Total Death Count"
+FROM covideath
+WHERE (continent IS NULL) AND ("location" NOT IN ('World','International','European Union')) 
+	AND "date" = (SELECT MAX("date")
+			   FROM covideath
+			   WHERE "location" = 'World'
+			   GROUP BY "location");
+--creating the view for the above
+CREATE VIEW death_by_continent AS
+SELECT DISTINCT("location"),total_deaths AS "Total Death Count"
+FROM covideath
+WHERE (continent IS NULL) AND ("location" NOT IN ('World','International','European Union')) 
+	AND "date" = (SELECT MAX("date")
+			   FROM covideath
+			   WHERE "location" = 'World'
+			   GROUP BY "location");
+--total cases vs total deaths
+SELECT "location","date",population,total_cases,total_deaths,
+	CASE 
+		WHEN total_deaths is not null AND total_cases is not null 
+			THEN concat(round((total_deaths/total_cases)*100,2)::text,'%')
+		ELSE ''
+	END AS deaths_per_cases
+FROM covideath
+order by "location";
+
+--countries with highest infection rate compared to population
+SELECT DISTINCT("location"),"date",population,total_cases,
+	CASE 
+		WHEN total_cases is not null 
+			THEN concat(round((total_cases/population)*100,2)::text,'%')
+		ELSE ''
+	END AS infection_rate
+FROM covideath
+WHERE "date" = (SELECT MAX("date")
+			   FROM covideath
+			   WHERE "location" = 'World'
+			   GROUP BY "location") 
+order by (	CASE 
+		WHEN total_cases is not null 
+			THEN concat(round((total_cases/population)*100,2)::text,'%')
+		ELSE ''
+	END) DESC;
+--creating view for the above query
+DROP VIEW infection_rate;
+CREATE VIEW infection_rate AS
+SELECT "location","date",population,total_cases,
+	CASE 
+		WHEN total_cases is not null 
+			THEN round((total_cases/population)*100,4)
+		ELSE 0
+	END AS infection_rate
+FROM covideath 
+WHERE continent IS NOT NULL
+order by (	CASE 
+		WHEN total_cases is not null 
+			THEN round((total_cases/population)*100,4)
+		ELSE 0
+	END) DESC;
+	
+SELECT *
+FROM infection_rate
+--let's check out the view
+DROP VIEW highest_infection_rate;
+CREATE VIEW highest_infection_rate AS
+SELECT "location",population,MAX(COALESCE(total_cases,0)) AS HighestInfectionCount,MAX(infection_rate) AS "PercentPopulationInfected"
+FROM infection_rate
+GROUP BY "location","population"
+ORDER BY "location";
+
+SELECT *
+FROM highest_infection_rate
+
+--countries with highest death count per population
+SELECT "location","date",population,total_deaths,
+	CASE 
+		WHEN total_deaths is not null 
+			THEN concat(round((total_deaths/population)*100,2)::text,'%')
+		ELSE ''
+	END AS death_per_pop
+FROM covideath
+order by (	CASE 
+		WHEN total_deaths is not null 
+			THEN concat(round((total_deaths/population)*100,2)::text,'%')
+		ELSE ''
+	END) DESC;
+	
+--break things by continent
+select *
+from covideath
+where continent is null;
+
+--create view of highest infection count and percent population infected per each country
+SELECT "location",population,MAX(COALESCE(total_cases,0)) AS HighestInfectionCount,MAX(COALESCE(total_cases,0)/population)*100 AS "PercentPopulationInfected"
+FROM covideath
+GROUP BY "location","population"
+ORDER BY (MAX(total_cases/population)*100) DESC;
+
+--create view of highest infection count and percent population infected per each country taking into account of the date
+CREATE VIEW highest_inf_rate_date AS 
+SELECT "location", population,"date", MAX(COALESCE(total_cases,0)) AS HighestInfectionCount,  MAX((COALESCE(total_cases,0)/population))*100 AS "PercentPopulationInfected"
+FROM covideath
+WHERE population IS NOT NULL
+GROUP BY "location", population, "date"
+--HAVING "location" LIKE '%Rwanda'
+--HAVING "date" = '2021-09-20'
+ORDER BY "date" DESC;

@@ -1,0 +1,154 @@
+/*
+DROP TABLE housedata;
+CREATE TABLE housedata (
+	UniqueID NUMERIC NOT NULL, 	
+	ParcelID TEXT,	
+	LandUse TEXT,	
+	PropertyAddress TEXT,	
+	SaleDate DATE,	
+	SalePrice TEXT,	
+	LegalReference TEXT,	
+	SoldAsVacant TEXT,	
+	OwnerName TEXT,	
+	OwnerAddress TEXT,	
+	Acreage NUMERIC,	
+	TaxDistrict TEXT,	
+	LandValue NUMERIC,	
+	BuildingValue NUMERIC,	
+	TotalValue NUMERIC,	
+	YearBuilt NUMERIC,	
+	Bedrooms NUMERIC,	
+	FullBath NUMERIC,	
+	HalfBath NUMERIC
+
+);
+COPY housedata
+FROM 'C:\Users\user\Desktop\data analytic\data\Housing_Data_Cleaning.csv'
+WITH (format csv, header);
+*/
+
+SELECT * 
+FROM housedata
+LIMIT 15;
+
+--Populate property adddress
+select uniqueid,propertyaddress
+from housedata
+where propertyaddress is null;
+/*
+DROP VIEW props;
+CREATE VIEW props AS
+select a.uniqueid,a.propertyaddress,
+	case 
+		when a.propertyaddress is null then coalesce(a.propertyaddress,b.propertyaddress)
+		else a.propertyaddress
+		end as newy
+from housedata as a
+join housedata as b
+on a.parcelid = b.parcelid
+AND a.uniqueid <> b.uniqueid;
+
+SELECT count(*)
+FROM props;
+
+ALTER TABLE housedata
+ADD propertyaddressupdated TEXT;
+*/
+
+update housedata as a
+set propertyaddress = b.propertyaddress
+from housedata as b
+where a.parcelid = b.parcelid and a.uniqueid <> b.uniqueid
+	and  a.propertyaddress is null and b.propertyaddress is not null
+;
+
+select count(*)
+from housedata;
+
+/*
+ALTER TABLE housedata
+DROP propertyaddressupdated
+*/
+select *
+from housedata;
+
+--Breaking out address into individual columns
+--using substring and charindex
+select *,
+substring(propertyaddress,1,position(',' in propertyaddress)-1) as address,
+substring(propertyaddress,position(',' in propertyaddress)+2) as address1
+from housedata;
+
+--apply the changes
+ALTER TABLE housedata
+ADD propertysplitaddress TEXT;
+
+update housedata 
+set propertysplitaddress = substring(propertyaddress,1,position(',' in propertyaddress)-1);
+
+
+ALTER TABLE housedata
+ADD propertysplitcity TEXT;
+
+update housedata 
+set propertysplitcity = substring(propertyaddress,position(',' in propertyaddress)+2);
+
+select *
+from housedata;
+
+--using SPLIT_PART
+select *,
+	split_part(owneraddress,', ',1) as owneradd,
+	split_part(owneraddress,', ',2) as ownercity,
+	split_part(owneraddress,', ',3) as ownerstate
+from housedata;
+--applying changes
+ALTER TABLE housedata
+ADD ownersplitaddress TEXT;
+
+update housedata 
+set ownersplitaddress = split_part(owneraddress,', ',1);
+
+
+ALTER TABLE housedata
+ADD ownersplitcity TEXT;
+
+update housedata 
+set ownersplitcity = split_part(owneraddress,', ',2);
+
+ALTER TABLE housedata
+ADD ownersplitstate  TEXT;
+
+update housedata 
+set ownersplitstate = split_part(owneraddress,', ',3);
+
+select *
+from housedata;
+
+--change Y and N to Yes and No in sold as vacant
+select soldasvacant,count(soldasvacant)
+from housedata
+group by soldasvacant
+order by 2;
+
+select soldasvacant,
+case 
+	when soldasvacant = 'Y' then 'Yes'
+	when soldasvacant = 'N' then  'No'
+	else soldasvacant
+	end as sold
+from housedata;
+--apply changes
+UPDATE housedata
+SET soldasvacant = case 
+	when soldasvacant = 'Y' then 'Yes'
+	when soldasvacant = 'N' then  'No'
+	else soldasvacant
+	end;
+	
+select soldasvacant,count(soldasvacant)
+from housedata
+group by soldasvacant
+order by 2;
+
+--remove duplicatesm not good practice!!!!
